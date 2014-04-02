@@ -1,0 +1,6 @@
+*.pyc
+*.pyo
+*.log
+*project
+dropin.cache
+_trial_temp
