@@ -135,10 +135,10 @@ class TestColl(unittest.TestCase):
         self.clock.advance(20)     
         self.assertEqual(len(C.buf), 0)
 
-        for N in range(26):
+        for N in range(self.C.Nlimit+2):
             C.add(N, None, 'line %d'%N, float(N))
 
-        self.assertEqual(len(C.buf), 21)
+        self.assertEqual(len(C.buf), self.C.Nlimit+1)
         self.assertEqual(C.buf[-1][2], 'messages lost')
 
         yield C.flushing
@@ -146,7 +146,7 @@ class TestColl(unittest.TestCase):
         self.assertEqual(self.EP.A, 1)
         self.assertEqual(len(P.R), 1)
         self.assertEqual(len(P.R[0]), 15)
-        self.assertEqual(len(C.buf), 21)
+        self.assertEqual(len(C.buf), self.C.Nlimit+1)
 
         self.clock.advance(20)     
         self.assertEqual(len(C.buf), 0)
@@ -158,4 +158,4 @@ class TestColl(unittest.TestCase):
         self.assertEqual(len(C.buf), 0)
         self.assertEqual(self.EP.A, 2)
         self.assertEqual(len(P.R), 2)
-        self.assertEqual(len(P.R[1]), 21)
+        self.assertEqual(len(P.R[1]), self.C.Nlimit+1)

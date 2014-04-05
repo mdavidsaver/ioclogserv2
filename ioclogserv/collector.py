@@ -12,7 +12,7 @@ class Collector(object):
     def __init__(self, processor, reactor=reactor):
         self.proc, self.reactor, self.debug = processor, reactor, False
         self.sizelimit, self.nrot = 100*2**20, 4
-        self.Nflush, self.Nlimit, self.Tflush = 10, 20, 30
+        self.Nlimit, self.Tflush = 50, 10
         self.flushing = None
         self.buf = []
 
@@ -24,7 +24,7 @@ class Collector(object):
         assert not isinstance(self.flushing, defer.Deferred)
         if len(self.buf) and self.flushing is None:
             self.flushing = True
-            self.reactor.callLater(self.Tflush/2, self._startFlush)
+            self.reactor.callLater(self.Tflush, self._startFlush)
 
     def _startFlush(self):
         if self.debug:
