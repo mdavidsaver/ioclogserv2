@@ -13,6 +13,9 @@ from twisted.plugin import IPlugin
 from twisted.application import service
 
 class Options(usage.Options):
+    optFlags = [
+        ["debug", "d", "Run daemon in developer (noisy) mode"],
+    ]
     optParameters = [
         ['ip', '', "", "Address of interface to bind (default all)"],
         ['port', 'P', 7004, "Address of interface to bind (default all)", int],
@@ -38,6 +41,11 @@ class Maker(object):
         coll = collector.Collector(proc)
 
         fact = receiver.IOCLogServerFactory(coll)
+
+        if opts['debug']:
+            print 'Running in developer (noisy) mode'
+            coll.Tflush = 3
+            coll.debug = True
 
         return TCPServer(opts['port'], fact)
 
