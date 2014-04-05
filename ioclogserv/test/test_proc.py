@@ -165,3 +165,54 @@ class TestDest(unittest.TestCase, testutil.FileTest):
         D.cleanup()
 
         self.assertFileMatch('mydest.log', '.*test line')
+
+    def test_users(self):
+        self.P.set('mydest', 'users', 'someone')
+        D = Destination(ConfigDict(self.P, 'mydest'))
+
+        E1 = Entry('05-Apr-14 10:33:52 linacioc02 special firstpv new=1 old=1', None, 1.0)
+        E1.user = 'special'
+        E2 = Entry('05-Apr-14 10:33:52 linacioc02 someone anotherpv new=1 old=1', None, 1.0)
+        E2.user = 'someone'
+
+        D.prepare()
+        self.assertFalse(D.consume(E1))
+        self.assertFalse(D.consume(E2))
+        D.cleanup()
+
+        self.assertFileNotMatch('mydest.log', '.*firstpv.*')
+        self.assertFileMatch('mydest.log', '.*anotherpv.*')
+
+    def test_pvs(self):
+        self.P.set('mydest', 'pvpat', 'first.*')
+        D = Destination(ConfigDict(self.P, 'mydest'))
+
+        E1 = Entry('05-Apr-14 10:33:52 linacioc02 special firstpv new=1 old=1', None, 1.0)
+        E1.pv = 'firstpv'
+        E2 = Entry('05-Apr-14 10:33:52 linacioc02 someone anotherpv new=1 old=1', None, 1.0)
+        E2.pv = 'anotherpv'
+
+        D.prepare()
+        self.assertFalse(D.consume(E1))
+        self.assertFalse(D.consume(E2))
+        D.cleanup()
+
+        self.assertFileMatch('mydest.log', '.*firstpv.*')
+        self.assertFileNotMatch('mydest.log', '.*anotherpv.*')
+
+    def test_host(self):
+        self.P.set('mydest', 'hosts', 'mymachine')
+        D = Destination(ConfigDict(self.P, 'mydest'))
+
+        E1 = Entry('05-Apr-14 10:33:52 linacioc02 special firstpv new=1 old=1', None, 1.0)
+        E1.host = 'linacioc02'
+        E2 = Entry('05-Apr-14 10:33:52 mymachine someone anotherpv new=1 old=1', None, 1.0)
+        E2.host = 'mymachine'
+
+        D.prepare()
+        self.assertFalse(D.consume(E1))
+        self.assertFalse(D.consume(E2))
+        D.cleanup()
+
+        self.assertFileNotMatch('mydest.log', '.*firstpv.*')
+        self.assertFileMatch('mydest.log', '.*anotherpv.*')

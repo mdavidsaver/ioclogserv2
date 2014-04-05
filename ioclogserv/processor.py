@@ -56,7 +56,12 @@ class Destination(object):
         self._maxsize, self._nbackup = conf.getint('maxsize',100*2**20), conf.getint('numbackup', 4)
 
         self.users = set(filter(len, map(str.strip, conf.get('users','').split(','))))
+        self.hosts = set(filter(len, map(str.strip, conf.get('hosts','').split(','))))
         self.filter = conf.getbool('stop',False)
+
+        self.pvs = None
+        if 'pvpat' in conf:
+            self.pvs = re.compile(conf['pvpat'])
 
         self.F = None
 
@@ -74,7 +79,9 @@ class Destination(object):
 
     def consume(self, E):
         assert self.F is not None
-        if not self.users or (self.users and E.user in self.users):
+        if (not self.users or E.user in self.users) and \
+            (not self.hosts or E.host in self.hosts) and \
+            (not self.pvs or self.pvs.match(E.pv or '')):
             # diagioc-br-rgp.cs.nsls2.local:3 Thu Apr  3 18:16:33 2014 ...
             if E.peer:
                 src = '%s:%-5d'%(E.peer.host, E.peer.port)
