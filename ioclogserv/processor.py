@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import logging, logging.handlers
-
 import re, time
 
 from ConfigParser import SafeConfigParser as ConfigParser
