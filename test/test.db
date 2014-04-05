@@ -1,0 +1,8 @@
+record(ao, "TST:ao") {}
+record(longout, "TST:lo") {}
+record(stringout, "TST:so") {}
+
+record(bo, "TST:bo") {
+  field(ZNAM, "zero")
+  field(ONAM, "one")
+}
