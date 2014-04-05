@@ -4,25 +4,25 @@ import os, os.path
 import re, errno
 
 class FileTest(object):
-    def assertFileMatch(self, fname, pat, mode='r', flags=0):
+    def assertFileMatch(self, fname, pat, mode='r', flags=0, _inv=False):
         R = re.compile(pat)
         try:
             with open(fname, mode) as F:
-                if flags&re.MULTILINE:
-                    M=R.match(F.read(), flags)
-                    if M is None:
-                        self.fail('File "%s" didn\'t contain "%s"'%(fname,pat))
-                else:
-                    match=False
-                    for L in F.readlines():
-                        M=R.match(L, flags)
-                        if M is not None:
-                            match=True
-                            break
-                    self.assertTrue(match, 'File "%s" did not contain "%s"'%(fname,pat))
+                match=False
+                for L in F.readlines():
+                    M=R.match(L, flags)
+                    if M is not None:
+                        match=True
+                        break
+                if not _inv and not match:
+                    raise self.failureException('File "%s" did not contain "%s"'%(fname,pat))
+                if _inv and match:
+                    raise self.failureException('File "%s" contains "%s"'%(fname,pat))
         except OSError as e:
             if e.errno==errno.ENOENT:
-                self.fail('File "%s" does not exist'%fname)
+                raise self.failureException('File "%s" does not exist'%fname)
+    def assertFileNotMatch(self, fname, pat, mode='r', flags=0, _inv=True):
+        self.assertFileMatch(fname,  pat, mode, flags, _inv)
 
     def assertFileExist(self, fname):
         self.assertTrue(os.path.isfile(fname), 'File "%s" does not exist'%fname)

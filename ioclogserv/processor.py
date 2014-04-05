@@ -54,8 +54,6 @@ class Processor(object):
 
 class Destination(object):
     def __init__(self, conf):
-        self.L = logging.getLogger(self.__class__.__name__+'.'+str(id(self)))
-        self.L.propagate=0
         self._fname = conf['filename']
         self._maxsize, self._nbackup = conf.getint('maxsize',100*2**20), conf.getint('numbackup', 4)
 
@@ -78,16 +76,12 @@ class Destination(object):
 
     def consume(self, E):
         assert self.F is not None
-        if self.users:
-            if E.user in self.users:
-                self.L.info(E.line)
-            return self.filter
-        else:
+        if not self.users or (self.users and E.user in self.users):
             # diagioc-br-rgp.cs.nsls2.local:3 Thu Apr  3 18:16:33 2014 ...
             if E.peer:
                 src = '%s:%-5d'%(E.peer.host, E.peer.port)
             else:
                 src = '0.0.0.0:0    '
             ts = time.strftime('%a %b %d %H:%M:%S %Y', time.localtime(E.rxtime))
-            self.F.write(' '.join([src, ts, E.line]))
-            return False
+            self.F.write(' '.join([src, ts, E.line])+'\n')
+            return self.filter

@@ -31,17 +31,6 @@ class TestColl(unittest.TestCase):
         self.C.connect(self.EP)
         self.C.reactor = self.clock
 
-    def test_low(self):
-        """Don't send enough to trigger a flush
-        """
-        C, P, N = self.C, self.P, 0
-
-        for N in range(9):
-            C.add(N, None, 'line %d'%N, float(N))
-
-        self.assertEqual(len(C.buf), 9)
-        self.assertTrue(C.flushing is None)
-
     @inlineCallbacks
     def test_collect(self):
         """Send exactly enough to trigger a flush
@@ -61,10 +50,9 @@ class TestColl(unittest.TestCase):
 
         self.assertEqual(self.EP.A, 1)
         self.assertEqual(len(P.R), 1)
-        self.assertEqual(len(P.R[0]), 10)
+        self.assertEqual(len(P.R[0]), 1)
 
         self.assertEqual(P.R[0][0][0], 1)
-        self.assertEqual(P.R[0][-1][0], 10)
 
         self.assertTrue(C.flushing is None)
 

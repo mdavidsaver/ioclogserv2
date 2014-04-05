@@ -22,14 +22,12 @@ class Collector(object):
 
     def _doFlush(self):
         assert not isinstance(self.flushing, defer.Deferred)
-        N = len(self.buf)
-        # if buffer size is over flush threshold, or time contained
-        # in buffer is longer than flush interval
-        if N>=self.Nflush or (N>=2 and self.buf[-1][3]-self.buf[0][3]>self.Tflush):
+        if len(self.buf) and self.flushing is None:
             self.flushing = True
             self.reactor.callLater(self.Tflush/2, self._startFlush)
 
     def _startFlush(self):
+        assert self.flushing is True
         self.buf, buf = [], self.buf
         self.flushing = D = threads.deferToThread(self.proc.proc, buf)
         D.addBoth(self._flushComplete)
