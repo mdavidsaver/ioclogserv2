@@ -9,7 +9,8 @@ from . import util
 
 # DD-Mon-YY HH:MM:SS host user PV new=A old=B [min=C max=D]
 _capl = r'(?P<time>\d+-\S+-\d+ \d+:\d+:\d+) (?P<host>\S+) (?P<user>\S+) (?P<pv>\S+)' + \
-        r' new=(?P<new>\S*) old=(?P<old>\S*) (?:min=(?P<min>\S*) max=(?P<max>\S*))?'
+        r'.*'
+#        r' new=(?P<new>\S*) old=(?P<old>\S*) (?:min=(?P<min>\S*) max=(?P<max>\S*))?'
 
 _capl=re.compile(_capl)
 

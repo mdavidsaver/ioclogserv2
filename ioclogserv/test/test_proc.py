@@ -4,7 +4,7 @@ import errno
 
 from twisted.trial import unittest
 
-from ioclogserv.processor import Processor, Destination, Entry
+from ioclogserv.processor import Processor, Destination, Entry, _capl
 from ioclogserv.util import ConfigDict
 
 from . import testutil
@@ -22,6 +22,30 @@ class MockDest(object):
         self.C.append(E)
         return self.ret
 
+_L='05-Apr-14 10:33:52 linacioc02 softioc BR:A4-BI{BPM:7}ddrTbtWfEnable.VAL new=1 old=1'
+_M='05-Apr-14 10:33:52 linacioc02 softioc BR:A4-BI{BPM:7}ddrTbtWfEnable.VAL new=1 old=1 min=0 max=2'
+
+class TestCAPL(unittest.TestCase):
+    def test_re_single(self):
+        R = _capl
+        M = R.match(_L)
+
+        self.assertNotIdentical(M, None)
+        self.assertEqual(M.group('time'), '05-Apr-14 10:33:52')
+        self.assertEqual(M.group('host'), 'linacioc02')
+        self.assertEqual(M.group('user'), 'softioc')
+        self.assertEqual(M.group('pv'), 'BR:A4-BI{BPM:7}ddrTbtWfEnable.VAL')
+
+    def test_re_minmax(self):
+        R = _capl
+        M = R.match(_M)
+
+        self.assertNotIdentical(M, None)
+        self.assertEqual(M.group('time'), '05-Apr-14 10:33:52')
+        self.assertEqual(M.group('host'), 'linacioc02')
+        self.assertEqual(M.group('user'), 'softioc')
+        self.assertEqual(M.group('pv'), 'BR:A4-BI{BPM:7}ddrTbtWfEnable.VAL')
+
 class TestProc(unittest.TestCase):
     def setUp(self):
         self.P = Processor()
@@ -38,6 +62,15 @@ class TestProc(unittest.TestCase):
         self.assertIdentical(self.D[0].C[0], self.D[1].C[0])
         self.assertIdentical(self.D[0].C[0].user, None)
         self.assertEqual(self.D[0].C[0].line, 'test')
+
+    def test_capl(self):
+        self.P.proc([(None,None,_L,1.0)])
+
+        self.assertIdentical(self.D[0].C[0], self.D[1].C[0])
+        self.assertEqual(self.D[0].C[0].user, 'softioc')
+        self.assertEqual(self.D[0].C[0].host, 'linacioc02')
+        self.assertEqual(self.D[0].C[0].pv, 'BR:A4-BI{BPM:7}ddrTbtWfEnable.VAL')
+        self.assertEqual(self.D[0].C[0].line, _L)
 
     def test_stop(self):
         self.D[0].ret = True
