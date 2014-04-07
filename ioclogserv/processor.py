@@ -34,21 +34,23 @@ class Processor(object):
             self.addDest(D)
 
     def proc(self, entries):
-        for D in self.dest:
-            D.prepare()
-        for src, peer, line, rxtime in entries:
-            E = Entry(line.strip(), peer, rxtime)
-            M=_capl.match(E.line)
-            if M:
-                E.user = M.group('user')
-                E.host = M.group('host')
-                E.pv = M.group('pv')
-
+        try:
             for D in self.dest:
-                if D.consume(E):
-                    break
-        for D in self.dest:
-            D.cleanup()
+                D.prepare()
+            for src, peer, line, rxtime in entries:
+                E = Entry(line.strip(), peer, rxtime)
+                M=_capl.match(E.line)
+                if M:
+                    E.user = M.group('user')
+                    E.host = M.group('host')
+                    E.pv = M.group('pv')
+
+                for D in self.dest:
+                    if D.consume(E):
+                        break
+        finally:
+            for D in self.dest:
+                D.cleanup()
 
 class Destination(object):
     def __init__(self, conf):
@@ -88,5 +90,6 @@ class Destination(object):
             else:
                 src = '0.0.0.0:0    '
             ts = time.strftime('%a %b %d %H:%M:%S %Y', time.localtime(E.rxtime))
-            self.F.write(' '.join([src, ts, E.line])+'\n')
+            self.F.write('%s %s %s\n'%(src, ts, E.line))
             return self.filter
+        return False

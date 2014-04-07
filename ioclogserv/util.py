@@ -15,7 +15,7 @@ def rotateFile(fname, maxsize=2**20, nbackup=3):
             if e.errno!=errno.ENOENT:
                 raise
     else:
-        rotate=True
+        rotate=False
 
     if rotate:
         logs = ['%s.%d'%(fname,N) for N in range(nbackup)]
