@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import re, time
+import re, time, os
 
 from ConfigParser import SafeConfigParser as ConfigParser
 from . import util
@@ -73,6 +73,7 @@ class Destination(object):
             self.F = None
         util.rotateFile(self._fname, maxsize=self._maxsize, nbackup=self._nbackup)
         self.F=open(self._fname, 'a')
+        os.fchmod(self.F.fileno(), 0644)
 
     def cleanup(self):
         if self.F is not None:
