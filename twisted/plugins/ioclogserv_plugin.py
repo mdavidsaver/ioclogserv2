@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 
 from twisted.application.internet import TCPServer
+try:
+    from twisted.manhole.telnet import ShellFactory
+except ImportError:
+    ShellFactory = None
 
 from ioclogserv import collector, processor, receiver
 
@@ -18,8 +22,9 @@ class Options(usage.Options):
     ]
     optParameters = [
         ['ip', '', "", "Address of interface to bind (default all)"],
-        ['port', 'P', 7004, "Address of interface to bind (default all)", int],
+        ['port', 'P', 7004, "Port to listen on (default 7004)", int],
         ['config', 'C', "server.conf", "Configuration file"],
+        ['manhole', 'M', 2222, "Manhole port (default not-run)", int],
     ]
     def postOptions(self):
         if self['port'] < 1 or self['port'] > 65535:
@@ -53,6 +58,20 @@ class Maker(object):
 
         print 'Starting logserver.'
 
-        return TCPServer(opts['port'], fact)
+        serv = service.MultiService()
+        serv.addService(TCPServer(opts['port'], fact))
+
+        if ShellFactory and opts['manhole']:
+            print 'Opening Manhole'
+            SF = ShellFactory()
+            SS = TCPServer(opts['manhole'], SF, interface='127.0.0.1')
+
+            SF.namespace['proc'] = proc
+            SF.namespace['coll'] = coll
+            SF.namespace['fact'] = fact
+
+            serv.addService(SS)
+
+        return serv
 
 serviceMaker = Maker()
