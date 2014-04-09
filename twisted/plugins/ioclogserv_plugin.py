@@ -37,6 +37,10 @@ class Maker(object):
 
         proc = processor.Processor()
         proc.load(opts['config'])
+        for E in proc.dest:
+            print 'Destination',E.name
+            print ' Maxsize:',E._maxsize
+            print ' Backups:',E._nbackup
 
         coll = collector.Collector(proc)
 
@@ -46,6 +50,8 @@ class Maker(object):
             print 'Running in developer (noisy) mode'
             coll.Tflush = 3
             coll.debug = True
+
+        print 'Starting logserver.'
 
         return TCPServer(opts['port'], fact)
 

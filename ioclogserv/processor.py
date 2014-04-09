@@ -54,6 +54,7 @@ class Processor(object):
 
 class Destination(object):
     def __init__(self, conf):
+        self.name = conf.name
         self._fname = conf['filename']
         self._maxsize, self._nbackup = conf.getint('maxsize',100*2**20), conf.getint('numbackup', 4)
 

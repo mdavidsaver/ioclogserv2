@@ -31,6 +31,9 @@ def rotateFile(fname, maxsize=2**20, nbackup=3):
 class ConfigDict(object):
     def __init__(self, C, S):
         self._C, self._S = C, S
+    @property
+    def name(self):
+        return self._S
     def __contains__(self, K):
         return self._C.has_option(self._S, K)
     def __getitem__(self, K):
