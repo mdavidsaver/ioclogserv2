@@ -12,9 +12,10 @@ class Collector(object):
     def __init__(self, processor, reactor=reactor):
         self.proc, self.reactor, self.debug = processor, reactor, False
         self.sizelimit, self.nrot = 100*2**20, 4
-        self.Nlimit, self.Tflush = 50, 10
+        self.Nlimit, self.Tflush = 5000, 10
         self.flushing = None
         self.buf = []
+        self.nlost = 0
 
         self.clients = set()
         self.connect = self.clients.add
@@ -31,18 +32,17 @@ class Collector(object):
             log.msg('Start flush')
         assert self.flushing is True
         self.buf, buf = [], self.buf
+        if self.nlost:
+            self.buf.append((None, None, '%d messages lost'%self.nlost, time.time()))
+            self.nlost = 0
         self.flushing = D = threads.deferToThread(self.proc.proc, buf)
         D.addBoth(self._flushComplete)
 
     def add(self, src, client, line, rxtime):
         """Add a new log entry to the queue
         """
-        if self.flushing and len(self.buf)>=self.Nlimit:
-            # Flush in progress, so we don't want to buffer too many
-            if len(self.buf)==self.Nlimit:
-                if self.debug:
-                    log.msg('messages lost from: %s'%client)
-                self.buf.append((None, None, 'messages lost', time.time()))
+        if len(self.buf)>=self.Nlimit:
+            self.nlost += 1
             return
         if self.debug:
             log.msg('%d From %s: %s'%(rxtime, client, line))
