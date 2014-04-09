@@ -22,7 +22,7 @@ def rotateFile(fname, maxsize=2**20, nbackup=3):
         logs.reverse()
         for src, dst in zip(logs[1:], logs[:-1]):
             if not os.path.isfile(src):
-                break
+                continue
             if os.path.isfile(dst):
                 os.remove(dst)
             os.rename(src, dst)
