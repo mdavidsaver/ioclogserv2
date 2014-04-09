@@ -35,6 +35,8 @@ class IOCLogServer(LineOnlyReceiver):
         if self.paused:
             self.transport.resumeProducing()
             self.paused = False
+    def show(self, lvl=0):
+        print ' Log Client',self.peer,self.paused,len(self._buffer)
 
 class IOCLogServerFactory(ServerFactory):
     protocol = IOCLogServer
@@ -42,3 +44,5 @@ class IOCLogServerFactory(ServerFactory):
         self.collector = collector
     def buildProtocol(self, addr):
         return self.protocol(self.collector)
+    def show(self, lvl=0):
+        print 'Factory'

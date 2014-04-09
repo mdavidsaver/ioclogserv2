@@ -52,6 +52,13 @@ class Processor(object):
             for D in self.dest:
                 D.cleanup()
 
+    def show(self, lvl=0):
+        print 'Processor'
+        print ' # destinations:',len(self.dest)
+        if lvl>0:
+            for D in self.dest:
+                D.show(lvl-1)
+
 class Destination(object):
     def __init__(self, conf):
         self.name = conf.name
@@ -95,3 +102,15 @@ class Destination(object):
             self.F.write('%s %s %s\n'%(src, ts, E.line))
             return self.filter
         return False
+
+    def show(self, lvl=0):
+        print """ Destination: %s
+  File : %s
+  Max  : %d
+  NBack: %d
+  Users: %s
+  Hosts: %s
+  PVs  : %s
+  Filt : %s
+"""%(self.name, self._fname, self._maxsize, self._nbackup,
+     self.users, self.hosts, self.pvs, self.filter)

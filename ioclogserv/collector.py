@@ -58,3 +58,16 @@ class Collector(object):
             C.ack() # resume recv() if necessary
         self._doFlush()
         return arg
+
+    def show(self, lvl=0):
+        print """Collector:
+ buf limit   : %d
+ flush period: %d
+ flushing    : %s
+ # bufs      : %d
+ # clients   : %d
+ # lost      : %d
+"""%(self.Nlimit, self.Tflush, self.flushing, len(self.buf), len(self.clients), self.nlost)
+        if lvl>0:
+            for C in self.clients:
+                C.show(lvl-1)
