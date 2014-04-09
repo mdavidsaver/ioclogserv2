@@ -11,7 +11,6 @@ class Collector(object):
     """
     def __init__(self, processor, reactor=reactor):
         self.proc, self.reactor, self.debug = processor, reactor, False
-        self.sizelimit, self.nrot = 100*2**20, 4
         self.Nlimit, self.Tflush = 5000, 10
         self.flushing = None
         self.buf = []
