@@ -1,21 +1,22 @@
 # -*- coding: utf-8 -*-
 
+import logging
+_log = logging.getLogger(__name__)
+
 import os, os.path, errno
 
 from ConfigParser import NoOptionError, NoSectionError
 
 def rotateFile(fname, maxsize=2**20, nbackup=3):
-    if maxsize:
-        rotate=False
-        try:
-            S = os.stat(fname)
-            if S.st_size>maxsize:
-                rotate=True
-        except OSError as e:
-            if e.errno!=errno.ENOENT:
-                raise
+    rotate=False
+    try:
+        S = os.stat(fname)
+    except OSError as e:
+        if e.errno!=errno.ENOENT:
+            raise
     else:
-        rotate=False
+        if S.st_size>maxsize:
+            rotate=True
 
     if rotate:
         logs = ['%s.%d'%(fname,N) for N in range(nbackup)]
@@ -25,7 +26,10 @@ def rotateFile(fname, maxsize=2**20, nbackup=3):
                 continue
             if os.path.isfile(dst):
                 os.remove(dst)
+            _log.debug("Rotate '%s' -> '%s'", src, dst)
             os.rename(src, dst)
+        assert not os.path.isfile(logs[-1])
+        _log.debug("Rotate '%s' -> '%s'", fname, logs[-1])
         os.rename(fname, logs[-1])
 
 class ConfigDict(object):

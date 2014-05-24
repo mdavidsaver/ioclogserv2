@@ -17,6 +17,12 @@ class TestRotate(unittest.TestCase, testutil.FileTest):
         self.assertFileMatch('rotate_test_file', 'test1')
         self.assertFileNotExist('rotate_test_file.0')
 
+        # maxsize is large than file size
+        rotateFile('rotate_test_file', nbackup=2, maxsize=300)
+
+        self.assertFileMatch('rotate_test_file', 'test1')
+        self.assertFileNotExist('rotate_test_file.0')
+
         rotateFile('rotate_test_file', nbackup=2, maxsize=3)
 
         self.assertFileNotExist('rotate_test_file')
