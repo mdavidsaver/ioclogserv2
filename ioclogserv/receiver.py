@@ -1,48 +1,85 @@
 # -*- coding: utf-8 -*-
 
-import time
+import logging
+_log = logging.getLogger(__name__)
 
-from twisted.python import log
-from twisted.internet.protocol import ServerFactory
-from twisted.protocols.basic import LineOnlyReceiver
+import weakref
 
-class IOCLogServer(LineOnlyReceiver):
+from twisted.internet import defer, protocol, reactor, task
+from twisted.protocols import basic
+
+class IOCLogProtocol(basic.LineOnlyReceiver):
     """Communicate with an individual client (IOC)
     """
+    reactor = reactor
     delimiter = b'\n'
-    def __init__(self, coll):
-        self.N, self.Nlim, self.paused, self.collector = 0, 30, False, coll
+    buflim = 30
+    collector = None
+    flushperiod = 1.0
+
     def connectionMade(self):
+        self._B, self._D, self.paused = [], None, False
+        self.pausecnt = 0
+
         self.transport.setTcpKeepAlive(1)
         self.peer = self.transport.getPeer()
-        self.collector.connect(self)
-        log.msg('connected %s:%d'%(self.peer.host, self.peer.port))
+        _log.info('connected %s:%d'%(self.peer.host, self.peer.port))
+
     def connectionLost(self, reason=None):
-        self.collector.disconnect(self)
-        log.msg('disconnected')
+        _log.info('disconnected')
         self.peer = None
+
     def lineLengthExceeded(self, line):
         self.lineReceived('Line length exceeded')
+
     def lineReceived(self, line):
-        if self.N >= self.Nlim:
+        self._B.append((self.reactor.seconds(), line))
+
+        if self._D is None:
+            self._D = task.deferLater(self.reactor, self.flushperiod,
+                                      self._flush)
+
+        if not self.paused and len(self._B)>=self.buflim:
             self.transport.pauseProducing()
             self.paused = True
-            return
-        self.N += 1
-        self.collector.add(self, self.peer, line, time.time())
-    def ack(self):
-        self.N = 0
+            self.pausecnt += 1
+            _log.debug('Pause %s:%d', self.peer.host, self.peer.port)
+
+    def _unpause(self):
         if self.paused:
             self.transport.resumeProducing()
             self.paused = False
-    def show(self, lvl=0):
-        print ' Log Client',self.peer,self.paused,len(self._buffer)
+            _log.debug('Resume %s:%d', self.peer.host, self.peer.port)
 
-class IOCLogServerFactory(ServerFactory):
-    protocol = IOCLogServer
+    @defer.inlineCallbacks
+    def _flush(self):
+        B, self._B = self._B, []
+        self._unpause()
+        T0 = self.reactor.seconds()
+        yield defer.maybeDeferred(self.collector, B, self.peer)
+
+        T1 = self.reactor.seconds()
+        if len(self._B)>0:
+            self._D = task.deferLater(self.reactor, self.flushperiod,
+                                      self._flush)
+        else:
+            self._unpause()
+            self._D = None
+
+        dT = T1-T0
+        if dT*0.9>self.flushperiod:
+            _log.warn("Processing %d messages from %s:%d took %f%%",
+                      len(B), self.peer.host, self.peer.port,
+                      100.0*dT/self.flushperiod)
+
+class IOCLogServerFactory(protocol.ServerFactory):
+    protocol = IOCLogProtocol
     def __init__(self, collector):
         self.collector = collector
+        self.clients = weakref.WeakSet()
+
     def buildProtocol(self, addr):
-        return self.protocol(self.collector)
-    def show(self, lvl=0):
-        print 'Factory'
+        P = self.protocol()
+        P.collector = self.collector
+        self.clients.add(P)
+        return P
