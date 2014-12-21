@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 
+import logging
+logging.basicConfig(level=logging.WARN)
+
 from twisted.trial import unittest
 from twisted.test import proto_helpers
 from twisted.internet import defer, task, address
@@ -48,51 +51,63 @@ class TestRecv(unittest.TestCase):
     def test_rx(self):
         self.P.dataReceived('line 1\n')
 
-        self.assertEqual(self.C.H, [])
+        # the first line received will enter the buffer
+        self.assertEqual(len(self.P._B), 1)
+        # and start the flush cycle
         self.assertNotIdentical(self.P._D, None)
+        # but the flush won't complete yet
         self.assertIdentical(self.C.D, None)
+        self.assertEqual(self.C.H, [])
 
-        self.clock.advance(self.P.flushperiod)
+        # start the flush
+        self.clock.advance(self.fact.flushperiod)
 
-        self.assertEqual(self.C.H, [([(0.0, 'line 1')], address.IPv4Address('TCP', '192.168.1.1', 54321))])
+        # now the buffer is emptied
+        self.assertEqual(len(self.P._B), 0)
+        # but the flush is still in progress
         self.assertNotIdentical(self.P._D, None)
+        # because our deferred is active
         self.assertNotIdentical(self.C.D, None)
+        self.assertEqual(self.C.H, [([(0.0, 'line 1')], address.IPv4Address('TCP', '192.168.1.1', 54321))])
 
+        # complete out deferred
         self.C.D.callback(None)
 
-        self.assertEqual(len(self.C.H), 1)
+        # since nothing more has been receieved the next flush isn't started
         self.assertIdentical(self.P._D, None)
+        self.assertEqual(len(self.C.H), 1)
 
     def test_oflow1(self):
-        i=0
-        while self.tr.producerState!='paused':
+        for i in range(self.fact.buflim*2):
             self.P.dataReceived('line %d\n'%i)
-            i+=1
 
         self.assertEqual(self.C.H, [])
         self.assertIdentical(self.C.D, None)
         self.assertNotIdentical(self.P._D, None)
-        self.assertEqual(len(self.P._B), self.P.buflim)
-        self.assertEqual(i, self.P.buflim)
+        self.assertEqual(len(self.P._B), self.fact.buflim)
+        self.assertEqual(self.P.nlost, self.fact.buflim)
 
     def test_oflow2(self):
         self.P.dataReceived('initial\n')
-        self.clock.advance(self.P.flushperiod)
+
+        self.assertIdentical(self.C.D, None)
+        self.assertEqual(len(self.P._B), 1)
+
+        self.clock.advance(self.fact.flushperiod)
 
         self.assertNotIdentical(self.C.D, None)
+        self.assertEqual(len(self.P._B), 0)
+
         self.assertNotEqual(self.tr.producerState, 'paused')
 
-        self.clock.advance(self.P.flushperiod)
+        self.clock.advance(self.fact.flushperiod)
 
         self.assertEqual(len(self.P._B), 0)
 
-        i=0
-        while self.tr.producerState!='paused':
+        for i in range(self.fact.buflim*2):
             self.P.dataReceived('line %d\n'%i)
-            i+=1
 
         self.assertNotEqual(self.C.H, [])
         self.assertNotIdentical(self.C.D, None)
         self.assertNotIdentical(self.P._D, None)
-        self.assertEqual(len(self.P._B), self.P.buflim)
-        self.assertEqual(i, self.P.buflim)
+        self.assertEqual(len(self.P._B), self.fact.buflim)

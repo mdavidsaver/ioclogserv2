@@ -1,218 +1,130 @@
 # -*- coding: utf-8 -*-
 
-import errno
+import logging
 
 from twisted.trial import unittest
-
-from ioclogserv.processor import Processor, Destination, Entry, _capl
-from ioclogserv.util import ConfigDict
-
-from . import testutil
+from twisted.internet import defer
 
 
-class MockDest(object):
-    def __init__(self, ret=False):
-        self.C, self.ret = [], ret
-        self.S, self.E = 0, 0
-    def prepare(self):
-        self.S += 1
-    def cleanup(self):
-        self.E += 1
-    def consume(self, E):
-        self.C.append(E)
-        return self.ret
+from .. import handler, processor
 
+class Store(object):
+    def __init__(self):
+        self.entries = []
+    def process(self, entries):
+        self.entries.append(entries)
+        return defer.succeed(None)
+
+_other='some random line'
 _L='05-Apr-14 10:33:52 linacioc02 softioc BR:A4-BI{BPM:7}ddrTbtWfEnable.VAL new=1 old=1'
 _M='05-Apr-14 10:33:52 linacioc02 softioc BR:A4-BI{BPM:7}ddrTbtWfEnable.VAL new=1 old=1 min=0 max=2'
 
-class TestCAPL(unittest.TestCase):
-    def test_re_single(self):
-        R = _capl
-        M = R.match(_L)
+class TestTagger(unittest.TestCase):
+    timeout = 2
 
-        self.assertNotIdentical(M, None)
-        self.assertEqual(M.group('time'), '05-Apr-14 10:33:52')
-        self.assertEqual(M.group('host'), 'linacioc02')
-        self.assertEqual(M.group('user'), 'softioc')
-        self.assertEqual(M.group('pv'), 'BR:A4-BI{BPM:7}ddrTbtWfEnable.VAL')
-
-    def test_re_minmax(self):
-        R = _capl
-        M = R.match(_M)
-
-        self.assertNotIdentical(M, None)
-        self.assertEqual(M.group('time'), '05-Apr-14 10:33:52')
-        self.assertEqual(M.group('host'), 'linacioc02')
-        self.assertEqual(M.group('user'), 'softioc')
-        self.assertEqual(M.group('pv'), 'BR:A4-BI{BPM:7}ddrTbtWfEnable.VAL')
-
-class TestProc(unittest.TestCase):
     def setUp(self):
-        self.P = Processor()
-        self.D = [MockDest(), MockDest()]
-        self.P.addDest(self.D[0])
-        self.P.addDest(self.D[1])
+        self.P = processor.PutLogTagger({})
+        self.S = Store()
+        self.P.dst.append(self.S)
 
-    def test_both(self):
-        self.P.proc([(None,None,' test ',1.0)])
+    @defer.inlineCallbacks
+    def test_nocapl(self):
+        M = logging.LogRecord(None, logging.INFO, '', 0, _other, (), None, None)
+        yield self.P.process([M])
+        self.assertEqual(len(self.S.entries), 1)
+        self.assertEqual(len(self.S.entries[0]), 1)
+        E = self.S.entries[0][0]
+        self.assertIdentical(E.user, None)
+        self.assertIdentical(E.host, None)
+        self.assertIdentical(E.pv, None)
 
-        self.assertEqual(len(self.D[0].C), 1)
-        self.assertEqual(len(self.D[1].C), 1)
-
-        self.assertIdentical(self.D[0].C[0], self.D[1].C[0])
-        self.assertIdentical(self.D[0].C[0].user, None)
-        self.assertEqual(self.D[0].C[0].line, 'test')
-
+    @defer.inlineCallbacks
     def test_capl(self):
-        self.P.proc([(None,None,_L,1.0)])
+        Es = [logging.LogRecord(None, logging.INFO, '', 0, M, (), None, None)
+                for M in [_L,_M]]
+        yield self.P.process(Es)
+        self.assertEqual(len(self.S.entries), 1)
+        self.assertEqual(len(self.S.entries[0]), 2)
+        for E in self.S.entries[0]:
+            self.assertEqual(E.user, 'softioc')
+            self.assertEqual(E.host, 'linacioc02')
+            self.assertEqual(E.pv, 'BR:A4-BI{BPM:7}ddrTbtWfEnable.VAL')
 
-        self.assertIdentical(self.D[0].C[0], self.D[1].C[0])
-        self.assertEqual(self.D[0].C[0].user, 'softioc')
-        self.assertEqual(self.D[0].C[0].host, 'linacioc02')
-        self.assertEqual(self.D[0].C[0].pv, 'BR:A4-BI{BPM:7}ddrTbtWfEnable.VAL')
-        self.assertEqual(self.D[0].C[0].line, _L)
+class TestFilter(unittest.TestCase):
+    timeout = 2
 
-    def test_stop(self):
-        self.D[0].ret = True
+    @defer.inlineCallbacks
+    def test_pos_None(self):
+        self.S = Store()
+        self.P = processor.PutLogFilter({'user':'+None'})
+        self.P.dst.append(self.S)
 
-        self.P.proc([(None,None,' test ',1.0)])
+        self.assertEqual(self.P.puser, {None})
 
-        self.assertEqual(len(self.D[0].C), 1)
-        self.assertEqual(len(self.D[1].C), 0)
+        R = handler.makeRecord('something else')
+        R.user = None
+        yield self.P.process([R])
 
-_BASIC = """
-[processor]
-chain = mydest
-[mydest]
-filename=test.log
-"""
+        self.assertEqual(len(self.S.entries), 1)
+        self.assertEqual(len(self.S.entries[0]), 1)
+        self.assertIdentical(self.S.entries[0][0].user, None)
 
-_COMPLEX = """
-[DEFAULT]
-filename = %(name)s.log
-[processor]
-chain = D1, D2, D3
-[D1]
-name=all
-maxsize=42
-numbackup=3
-[D2]
-name=foobar
-users=  foo ,   bar 
-stop = true
-[D3]
-name=experts
-"""
+    @defer.inlineCallbacks
+    def test_neg_None(self):
+        self.S = Store()
+        self.P = processor.PutLogFilter({'user':'-None'})
+        self.P.dst.append(self.S)
 
-class TestProcConf(unittest.TestCase):
-    def test_defaults(self):
-        P = Processor()
+        self.assertEqual(self.P.nuser, {None})
 
-        with open('test.conf', 'w') as F:
-            F.write(_BASIC)
-        P.load('test.conf')
+        R = [handler.makeRecord('something else'),handler.makeRecord('other')]
+        R[0].user = None
+        R[1].user = 'other'
+        yield self.P.process(R)
 
-        self.assertEqual(len(P.dest), 1)
-        D = P.dest[0]
-        self.assertEqual(D.users, set())
-        self.assertEqual(D.filter, False)
+        self.assertEqual(len(self.S.entries), 1)
+        self.assertEqual(len(self.S.entries[0]), 1)
+        self.assertEqual(self.S.entries[0][0].user, 'other')
 
-    def test_complex(self):
-        P = Processor()
+    @defer.inlineCallbacks
+    def test_pos_user(self):
+        self.S = Store()
+        self.P = processor.PutLogFilter({'user':'one +two'})
+        self.P.dst.append(self.S)
 
-        with open('test.conf', 'w') as F:
-            F.write(_COMPLEX)
-        P.load('test.conf')
+        self.assertEqual(self.P.puser, {'one','two'})
 
-        self.assertEqual(len(P.dest), 3)
+        Es = []
+        for i,user in enumerate(['random','one','fakeone','twothree','two']):
+            M = logging.LogRecord(None, logging.INFO, '', 0, 'msg %d %s', (i,user), None, None)
+            M.user = user
+            M.i = i
+            Es.append(M)
 
-        D = P.dest[0]
-        self.assertEqual(D.users, set())
-        self.assertEqual(D.filter, False)
+        yield self.P.process(Es)
+        self.assertEqual(len(self.S.entries), 1)
+        self.assertEqual(len(self.S.entries[0]), 2)
+        self.assertEqual(self.S.entries[0][0].i, 1)
+        self.assertEqual(self.S.entries[0][1].i, 4)
 
-        D = P.dest[1]
-        self.assertEqual(D.users, set(['foo','bar']))
-        self.assertEqual(D.filter, True)
+    @defer.inlineCallbacks
+    def test_neg_user(self):
+        self.S = Store()
+        self.P = processor.PutLogFilter({'user':'-one -two'})
+        self.P.dst.append(self.S)
 
-        D = P.dest[2]
-        self.assertEqual(D.users, set())
-        self.assertEqual(D.filter, False)
+        self.assertEqual(self.P.nuser, {'one','two'})
 
-class TestDest(unittest.TestCase, testutil.FileTest):
-    def setUp(self):
-        from ConfigParser import SafeConfigParser as CP
-        import os
-        
-        try:
-            os.remove('mydest.log')
-        except OSError as e:
-            if e.errno!=errno.ENOENT:
-                raise
+        Es = []
+        for i,user in enumerate(['random','one','fakeone','twothree','two']):
+            M = logging.LogRecord(None, logging.INFO, '', 0, 'msg %d %s', (i,user), None, None)
+            M.user = user
+            M.i = i
+            Es.append(M)
 
-        P = CP()
-        P.add_section('mydest')
-        P.set('mydest', 'filename', 'mydest.log')
-        P.set('mydest', 'maxsize', '100')
-        self.P = P
-
-    def test_pass(self):
-        D = Destination(ConfigDict(self.P, 'mydest'))
-
-        E = Entry('test line', None, 1.0)
-
-        D.prepare()
-        self.assertFalse(D.consume(E))
-        D.cleanup()
-
-        self.assertFileMatch('mydest.log', '.*test line')
-
-    def test_users(self):
-        self.P.set('mydest', 'users', 'someone')
-        D = Destination(ConfigDict(self.P, 'mydest'))
-
-        E1 = Entry('05-Apr-14 10:33:52 linacioc02 special firstpv new=1 old=1', None, 1.0)
-        E1.user = 'special'
-        E2 = Entry('05-Apr-14 10:33:52 linacioc02 someone anotherpv new=1 old=1', None, 1.0)
-        E2.user = 'someone'
-
-        D.prepare()
-        self.assertFalse(D.consume(E1))
-        self.assertFalse(D.consume(E2))
-        D.cleanup()
-
-        self.assertFileNotMatch('mydest.log', '.*firstpv.*')
-        self.assertFileMatch('mydest.log', '.*anotherpv.*')
-
-    def test_pvs(self):
-        self.P.set('mydest', 'pvpat', 'first.*')
-        D = Destination(ConfigDict(self.P, 'mydest'))
-
-        E1 = Entry('05-Apr-14 10:33:52 linacioc02 special firstpv new=1 old=1', None, 1.0)
-        E1.pv = 'firstpv'
-        E2 = Entry('05-Apr-14 10:33:52 linacioc02 someone anotherpv new=1 old=1', None, 1.0)
-        E2.pv = 'anotherpv'
-
-        D.prepare()
-        self.assertFalse(D.consume(E1))
-        self.assertFalse(D.consume(E2))
-        D.cleanup()
-
-        self.assertFileMatch('mydest.log', '.*firstpv.*')
-        self.assertFileNotMatch('mydest.log', '.*anotherpv.*')
-
-    def test_host(self):
-        self.P.set('mydest', 'hosts', 'mymachine')
-        D = Destination(ConfigDict(self.P, 'mydest'))
-
-        E1 = Entry('05-Apr-14 10:33:52 linacioc02 special firstpv new=1 old=1', None, 1.0)
-        E1.host = 'linacioc02'
-        E2 = Entry('05-Apr-14 10:33:52 mymachine someone anotherpv new=1 old=1', None, 1.0)
-        E2.host = 'mymachine'
-
-        D.prepare()
-        self.assertFalse(D.consume(E1))
-        self.assertFalse(D.consume(E2))
-        D.cleanup()
-
-        self.assertFileNotMatch('mydest.log', '.*firstpv.*')
-        self.assertFileMatch('mydest.log', '.*anotherpv.*')
+        yield self.P.process(Es)
+        self.assertEqual(len(self.S.entries), 1)
+        self.assertEqual(len(self.S.entries[0]), 3)
+        self.assertEqual(self.S.entries[0][0].i, 0)
+        self.assertEqual(self.S.entries[0][1].i, 2)
+        self.assertEqual(self.S.entries[0][2].i, 3)

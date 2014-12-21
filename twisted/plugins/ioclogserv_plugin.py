@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
 
+import logging, sys
+
+from ConfigParser import SafeConfigParser as ConfigParser
+
+from twisted.python import log
 from twisted.application.internet import TCPServer
 try:
     from twisted.manhole.telnet import ShellFactory
 except ImportError:
     ShellFactory = None
 
-from ioclogserv import collector, processor, receiver
-
-import os.path
+from ioclogserv import forward, handler, processor, receiver, store, util
 
 from zope.interface import implements
 
@@ -16,21 +19,28 @@ from twisted.python import usage
 from twisted.plugin import IPlugin
 from twisted.application import service
 
+class Log2Twisted(logging.StreamHandler):
+    """Print logging module stream to the twisted log
+    """
+    def __init__(self):
+        super(Log2Twisted,self).__init__(stream=self)
+        self.write = log.msg
+    def flush(self):
+        pass
+
 class Options(usage.Options):
     optFlags = [
         ["debug", "d", "Run daemon in developer (noisy) mode"],
     ]
     optParameters = [
-        ['ip', '', "", "Address of interface to bind (default all)"],
-        ['port', 'P', 7004, "Port to listen on (default 7004)", int],
         ['config', 'C', "server.conf", "Configuration file"],
-        ['manhole', 'M', 2222, "Manhole port (default not-run)", int],
+        ['manhole', 'M', 0, "Manhole port (default not-run)", int],
     ]
     def postOptions(self):
-        if self['port'] < 1 or self['port'] > 65535:
-            raise usage.UsageError('Port out of range')
-        if not self['config'] or not os.path.isfile(self['config']):
-            raise usage.UsageError('"%s" does not exist'%self['config'])
+        C = ConfigParser()
+        with open(self['config'], 'r') as F:
+            C.readfp(F)
+        self['config'] = C
 
 class Maker(object):
     implements(service.IServiceMaker, IPlugin)
@@ -39,39 +49,38 @@ class Maker(object):
     options = Options
 
     def makeService(self, opts):
+        tempH = logging.StreamHandler(sys.stderr)
+        tempH.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
 
-        proc = processor.Processor()
-        proc.load(opts['config'])
-        for E in proc.dest:
-            print 'Destination',E.name
-            print ' Maxsize:',E._maxsize
-            print ' Backups:',E._nbackup
+        H = Log2Twisted()
+        H.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
 
-        coll = collector.Collector(proc)
+        R = logging.getLogger()
+        R.addHandler(tempH)
+        R.addHandler(H)
 
-        fact = receiver.IOCLogServerFactory(coll)
-
-        if opts['debug']:
-            print 'Running in developer (noisy) mode'
-            coll.Tflush = 3
-            coll.debug = True
-
-        print 'Starting logserver.'
+        conf = opts['config']
+        gen = util.ConfigDict(conf, 'general')
+        lvl = logging.getLevelName(gen.get('log.level','WARN'))
+        R.setLevel(lvl)
 
         serv = service.MultiService()
-        serv.addService(TCPServer(opts['port'], fact))
+
+        roots, services = handler.buildPipelines(conf)
+        [serv.addService(S) for S in roots]
+
+        for S in services.itervalues():
+            print S.name,S
 
         if ShellFactory and opts['manhole']:
             print 'Opening Manhole'
             SF = ShellFactory()
+            SF.namespace.update(services)
+
             SS = TCPServer(opts['manhole'], SF, interface='127.0.0.1')
-
-            SF.namespace['proc'] = proc
-            SF.namespace['coll'] = coll
-            SF.namespace['fact'] = fact
-
             serv.addService(SS)
 
+        R.removeHandler(tempH)
         return serv
 
 serviceMaker = Maker()

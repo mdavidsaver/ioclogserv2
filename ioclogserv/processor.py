@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
 
-import re, time, os
+import logging
+_log = logging.getLogger(__name__)
 
-from ConfigParser import SafeConfigParser as ConfigParser
-from . import util
+import re
+
+from . import handler
+
+from twisted.internet import defer, threads
 
 # DD-Mon-YY HH:MM:SS host user PV new=A old=B [min=C max=D]
 _capl = r'(?P<time>\d+-\S+-\d+ \d+:\d+:\d+) (?P<host>\S+) (?P<user>\S+) (?P<pv>\S+)' + \
@@ -12,105 +16,58 @@ _capl = r'(?P<time>\d+-\S+-\d+ \d+:\d+:\d+) (?P<host>\S+) (?P<user>\S+) (?P<pv>\
 
 _capl=re.compile(_capl)
 
-class Entry(object):
-    def __init__(self, line, peer, rxtime):
-        self.line, self.peer, self.rxtime = line, peer, rxtime
-        self.user, self.host, self.pv = None, None, None
+class PutLogTagger(handler.Processor):
+    @defer.inlineCallbacks
+    def process(self, entries):
+        # do regex processing in a worker thread
+        entries = yield threads.deferToThread(self._onthread, entries)
+        yield self.complete(entries)
 
-class Processor(object):
-    def __init__(self):
-        self.dest = []
-        self.addDest = self.dest.append
-
-    def load(self, conf):
-        P = ConfigParser()
-        with open(conf,'r') as F:
-            P.readfp(F)
-        C = util.ConfigDict(P, 'processor')
-
-        for name in map(str.strip, C['chain'].split(',')):
-            S = util.ConfigDict(P, name)
-            D = Destination(S)
-            self.addDest(D)
-
-    def proc(self, entries):
-        try:
-            for D in self.dest:
-                D.prepare()
-            for src, peer, line, rxtime in entries:
-                E = Entry(line.strip(), peer, rxtime)
-                M=_capl.match(E.line)
-                if M:
-                    E.user = M.group('user')
-                    E.host = M.group('host')
-                    E.pv = M.group('pv')
-
-                for D in self.dest:
-                    if D.consume(E):
-                        break
-        finally:
-            for D in self.dest:
-                D.cleanup()
-
-    def show(self, lvl=0):
-        print 'Processor'
-        print ' # destinations:',len(self.dest)
-        if lvl>0:
-            for D in self.dest:
-                D.show(lvl-1)
-
-class Destination(object):
-    def __init__(self, conf):
-        self.name = conf.name
-        self._fname = conf['filename']
-        self._maxsize, self._nbackup = conf.getint('maxsize',100*2**20), conf.getint('numbackup', 4)
-
-        self.users = set(filter(len, map(str.strip, conf.get('users','').split(','))))
-        self.hosts = set(filter(len, map(str.strip, conf.get('hosts','').split(','))))
-        self.filter = conf.getbool('stop',False)
-
-        self.pvs = None
-        if 'pvpat' in conf:
-            self.pvs = re.compile(conf['pvpat'])
-
-        self.F = None
-
-    def prepare(self):
-        if self.F is not None:
-            self.F.close()
-            self.F = None
-        util.rotateFile(self._fname, maxsize=self._maxsize, nbackup=self._nbackup)
-        self.F=open(self._fname, 'a')
-        os.fchmod(self.F.fileno(), 0644)
-
-    def cleanup(self):
-        if self.F is not None:
-            self.F.close()
-            self.F = None
-
-    def consume(self, E):
-        assert self.F is not None
-        if (not self.users or E.user in self.users) and \
-            (not self.hosts or E.host in self.hosts) and \
-            (not self.pvs or self.pvs.match(E.pv or '')):
-            # diagioc-br-rgp.cs.nsls2.local:3 Thu Apr  3 18:16:33 2014 ...
-            if E.peer:
-                src = '%s:%-5d'%(E.peer.host, E.peer.port)
+    def _onthread(self, entries):
+        for ent in entries:
+            M = _capl.match(ent.msg)
+            if M:
+                ent.user = M.group('user')
+                ent.host = M.group('host')
+                ent.pv = M.group('pv')
             else:
-                src = '0.0.0.0:0    '
-            ts = time.strftime('%a %b %d %H:%M:%S %Y', time.localtime(E.rxtime))
-            self.F.write('%s %s %s\n'%(src, ts, E.line))
-            return self.filter
-        return False
+                ent.user = ent.host = ent.pv = None
+        return entries
 
-    def show(self, lvl=0):
-        print """ Destination: %s
-  File : %s
-  Max  : %d
-  NBack: %d
-  Users: %s
-  Hosts: %s
-  PVs  : %s
-  Filt : %s
-"""%(self.name, self._fname, self._maxsize, self._nbackup,
-     self.users, self.hosts, self.pvs, self.filter)
+handler.registerProcessor('tagcaputlog', PutLogTagger)
+
+class PutLogFilter(handler.Processor):
+    def __init__(self, conf=None):
+        handler.Processor.__init__(self, conf)
+        self.puser, self.nuser = set(), set()
+        if 'user' not in conf:
+            _log.warning('putlog filter with no user spec')
+            return
+
+        for user in map(str.strip, conf['user'].split()):
+            G = self.puser
+            if user.startswith('-'):
+                G = self.nuser
+                user = user[1:]
+            elif user.startswith('+'):
+                user = user[1:]
+
+            if user=='None':
+                user = None # catchall for entries not in caputlog format
+
+            G.add(user)
+
+        if self.puser and self.nuser:
+            _log.warn("Giving both positive and negative user matches isn't helpful")
+
+    @defer.inlineCallbacks
+    def process(self, entries):
+        result = []
+        for ent in entries:
+            if self.puser and ent.user in self.puser:
+                result.append(ent)
+            elif self.nuser and ent.user not in self.nuser:
+                result.append(ent)
+        yield self.complete(result)
+
+handler.registerProcessor('filtercaputlog', PutLogFilter)
