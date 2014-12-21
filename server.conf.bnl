@@ -25,10 +25,31 @@ in = source
 buffer.period = 0.25
 buffer.size = 1000
 
+[caputlog]
+type = tagcaputlog
+in = source
+
+[softioc]
+type = filtercaputlog
+in = caputlog
+user = softioc
+
+[writesoft]
+type = writer
+in = softioc
+name = softioc
+#buffer.period = 5.0
+#buffer.size = 100
+
+
+[other]
+type = filtercaputlog
+in = caputlog
+user = -softioc
+
 [writeepics]
 type = writer
-in = source
+in = other
 name = epics
-
-buffer.period = 5.0
-buffer.size = 10000
+#buffer.period = 5.0
+#buffer.size = 100
