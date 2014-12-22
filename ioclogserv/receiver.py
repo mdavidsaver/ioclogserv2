@@ -94,13 +94,13 @@ class IOCLogServerFactory(protocol.ServerFactory):
 
     def __init__(self, collector):
         self.collector = collector
-        self.clients = weakref.WeakSet()
+        self.clients = weakref.WeakKeyDictionary()
 
     def buildProtocol(self, addr):
         P = self.protocol()
         P.factory = self
         P.collector = self.collector
-        self.clients.add(P)
+        self.clients[P] = None
         return P
 
 class IOCLogReceiver(handler.Processor):

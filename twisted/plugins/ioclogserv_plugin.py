@@ -23,7 +23,7 @@ class Log2Twisted(logging.StreamHandler):
     """Print logging module stream to the twisted log
     """
     def __init__(self):
-        super(Log2Twisted,self).__init__(stream=self)
+        logging.StreamHandler.__init__(self,self)
         self.write = log.msg
     def flush(self):
         pass
