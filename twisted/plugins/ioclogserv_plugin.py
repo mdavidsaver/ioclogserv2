@@ -38,9 +38,15 @@ class Options(usage.Options):
     ]
     def postOptions(self):
         C = ConfigParser()
+        print 'Reading',self['config']
         with open(self['config'], 'r') as F:
             C.readfp(F)
         self['config'] = C
+
+def showService(S,i=1):
+    print ' '*i,S
+    if hasattr(S, 'services'):
+        [showService(SS,i+1) for SS in S.services]
 
 class Maker(object):
     implements(service.IServiceMaker, IPlugin)
@@ -81,6 +87,8 @@ class Maker(object):
             serv.addService(SS)
 
         R.removeHandler(tempH)
+        print 'root service',serv
+        showService(serv)
         return serv
 
 serviceMaker = Maker()

@@ -66,7 +66,7 @@ class NetPublisher(handler.Processor):
 
     def remove(self, clienttr):
         P = clienttr.__producer
-        clienttr.registerProducer()
+        clienttr.unregisterProducer()
         del clienttr.__producer
         self.clients.remove(P)
 

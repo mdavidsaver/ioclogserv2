@@ -133,4 +133,9 @@ class IOCLogReceiver(handler.Processor):
 
         yield self.complete(ret)
 
+    def show(self):
+        print 'Clients:'
+        for C in self.fact.clients:
+            print ' ',C.transport.getPeer()
+
 handler.registerProcessor('receiver', IOCLogReceiver)

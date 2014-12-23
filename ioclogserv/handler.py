@@ -5,10 +5,8 @@ from zope import interface
 import logging
 _log = logging.getLogger(__name__)
 
-from cStringIO import StringIO
-
 from twisted.application import service
-from twisted.internet import defer, reactor, task
+from twisted.internet import defer
 
 from .util import ConfigDict
 
@@ -57,6 +55,10 @@ class Processor(service.MultiService):
             return F
 
         return D
+
+    def __repr__(self):
+        return '%s(name="%s")'%(self.__class__.__name__, self.name)
+    __str__ = __repr__
 
 _factories = {}
 
