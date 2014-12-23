@@ -139,7 +139,9 @@ def buildPipelines(parser):
             roots[proc.name] = proc
 
         else:
-            src = byname[proc.conf['in']]
+            src = byname.get(proc.conf['in'])
+            if src is None:
+                raise RuntimeError("Source %s for %s doesn't exist"%(proc.conf['in'],proc.name))
             src.dst.append(proc)
 
     return [S], byname
