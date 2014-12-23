@@ -1,11 +1,11 @@
 [DEFAULT]
 
-filename = ./%(name)s.log
-#maxsize = 104857600
-#numbackup = 10
+filename = /var/log/epics/%(name)s.log
+maxsize = 104857600
+numbackup = 10
 
 [general]
-#log.level = WARN
+log.level = INFO
 
 [source]
 type = receiver
@@ -38,18 +38,25 @@ user = softioc
 type = writer
 in = softioc
 name = softioc
-#buffer.period = 5.0
-#buffer.size = 100
 
 
-[other]
+[otherca]
 type = filtercaputlog
 in = caputlog
-user = -softioc
+user = -softioc -None
 
 [writeepics]
 type = writer
-in = other
+in = otherca
 name = epics
-#buffer.period = 5.0
-#buffer.size = 100
+
+
+[misc]
+type = filtercaputlog
+in = caputlog
+user = None
+
+[writeother]
+type = writer
+in = misc
+name = misc

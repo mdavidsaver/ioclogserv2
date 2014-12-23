@@ -28,8 +28,8 @@ if [ -f /etc/default/ioclogserver2 ] ; then
     . /etc/default/ioclogserver2
 fi
 
-DAEMON_OPTS="--logfile=/var/log/epics/daemon.log --pidfile=$PID_FILE --uid=$RUN_AS_USER --gid=$RUN_AS_USER"
-DAEMON_OPTS="$DAEMON_OPTS ioclogserver -C $CONF_FILE -P 7005"
+DAEMON_OPTS="--logfile=/var/log/epics/daemon.log --pidfile=$PID_FILE --uid=$RUN_AS_USER --gid=$RUN_AS_USER --umask=0022"
+DAEMON_OPTS="$DAEMON_OPTS ioclogserver -C $CONF_FILE -M 2223"
 
 SSD_OPTS="-q --pidfile $PID_FILE"
 SSD_OPTS="$SSD_OPTS --user $RUN_AS_USER --name $DNAME"

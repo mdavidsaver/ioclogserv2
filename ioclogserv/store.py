@@ -26,7 +26,7 @@ class FileWriter(handler.Processor):
         # Don't create RotatingFileHandler until privlages are dropped
         fname = self.conf['filename']
         maxBytes = self.conf.getint('maxsize', 10*1024*1024)
-        backupCount = self.conf.getint('maxfiles', 10)
+        backupCount = self.conf.getint('numbackup', 10)
         H = RotatingFileHandler(fname, maxBytes=maxBytes,
                                 backupCount=backupCount)
         H.setFormatter(logging.Formatter(self._fmt,self._date))
