@@ -30,6 +30,13 @@ class Processor(service.MultiService):
         self.dst = []
 
     def process(self, entries):
+        """Do processing work of this plugin.
+        
+        Default implementation calls self.complete(entries) to pass
+        results along to chained plugins.
+        Should return a deferred which fires when all work is complete
+        (may use the return value of self.complete()).
+        """
         return self.complete(entries)
 
     def complete(self, entries):
@@ -51,59 +58,7 @@ class Processor(service.MultiService):
 
         return D
 
-class DecouplingProcessor(Processor):
-    reactor = reactor
-    def __init__(self, conf=None):
-        Processor.__init__(self,conf)
-        self.flushperiod = conf.getfloat('buffer.period',5.0)
-        self.buflim = conf.getint('buffer.size', 100)
-        self._B, self._D = [], None
-        self.nlost = 0
-
-        if self.buflim==0:
-            # disable buffering and run blocking
-            self.process = self.process_queue
-
-    def process(self, entries):
-        if len(self._B)>=self.buflim:
-            self.nlost += len(entries)
-            return # drop
-
-        self._B.extend(entries)
-        if self._D is None:
-            self._start_flush()
-
-    def process_queue(self, entries):
-        return self.complete(entries)
-
-    def _start_flush(self):
-        assert self._D is None
-        self._D = task.deferLater(self.reactor, self.flushperiod,
-                                      self._flush)
-
-        @self._D.addErrback
-        def oops(F):
-            self._D = None
-            S = StringIO()
-            F.printDetailedTraceback(S)
-            _log.error(S.getvalue())
-
-    @defer.inlineCallbacks
-    def _flush(self):
-        B, self._B = self._B, []
-        nlost, self.nlost = self.nlost, 0
-        _log.debug('Flush %d messages at %s', len(B), self.name)
-        if nlost>0:
-            B.append(makeRecord('Lost %d messages at %s', nlost,self.name))
-
-        yield self.process_queue(B)
-        self._D = None
-        if len(self._B)>0:
-            self._start_flush()
-
-_factories = {
-    'decouple':DecouplingProcessor,
-}
+_factories = {}
 
 def registerProcessor(name, klass):
     assert service.IService in interface.implementedBy(klass)
