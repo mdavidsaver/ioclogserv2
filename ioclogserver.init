@@ -19,6 +19,7 @@ DESC="Log recorder daemon for EPICS IOCS"
 # defaults
 RUN=no
 RUN_AS_USER=ioclogserver
+RUN_AS_GROUP=nogroup
 
 CONF_FILE="/etc/ioclogserver.conf"
 PID_FILE="/var/run/$NAME.pid"
@@ -28,7 +29,7 @@ if [ -f /etc/default/ioclogserver2 ] ; then
     . /etc/default/ioclogserver2
 fi
 
-DAEMON_OPTS="--logfile=/var/log/epics/daemon.log --pidfile=$PID_FILE --uid=$RUN_AS_USER --gid=$RUN_AS_USER --umask=0022"
+DAEMON_OPTS="--logfile=/var/log/epics/daemon.log --pidfile=$PID_FILE --uid=$RUN_AS_USER --gid=$RUN_AS_GROUP --umask=0022"
 DAEMON_OPTS="$DAEMON_OPTS ioclogserver -C $CONF_FILE -M 2223"
 
 SSD_OPTS="-q --pidfile $PID_FILE"
