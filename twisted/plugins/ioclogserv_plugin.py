@@ -2,7 +2,10 @@
 
 import logging, sys
 
-from ConfigParser import SafeConfigParser as ConfigParser
+try:
+    from ConfigParser import SafeConfigParser as ConfigParser #py2.7
+except ImportError:
+    from configparser import SafeConfigParser as ConfigParser
 
 from twisted.python import log
 from twisted.application.internet import TCPServer
@@ -13,7 +16,8 @@ except ImportError:
 
 from ioclogserv import forward, handler, processor, receiver, store, util
 
-from zope.interface import implements
+#from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.python import usage
 from twisted.plugin import IPlugin
@@ -38,18 +42,19 @@ class Options(usage.Options):
     ]
     def postOptions(self):
         C = ConfigParser()
-        print 'Reading',self['config']
+        print('Reading',self['config'])
         with open(self['config'], 'r') as F:
             C.readfp(F)
         self['config'] = C
 
 def showService(S,i=1):
-    print ' '*i,S
+    print(' '*i,S)
     if hasattr(S, 'services'):
         [showService(SS,i+1) for SS in S.services]
 
+@implementer(service.IServiceMaker, IPlugin)
 class Maker(object):
-    implements(service.IServiceMaker, IPlugin)
+    #implements(service.IServiceMaker, IPlugin)
     tapname = 'ioclogserver'
     description = "IOC Log Server"
     options = Options
@@ -75,11 +80,11 @@ class Maker(object):
         roots, services = handler.buildPipelines(conf)
         [serv.addService(S) for S in roots]
 
-        for S in services.itervalues():
-            print S.name,S
+        for S in services.values():
+            print(S.name,S)
 
         if ShellFactory and opts['manhole']:
-            print 'Opening Manhole'
+            print('Opening Manhole')
             SF = ShellFactory()
             SF.namespace.update(services)
 
@@ -87,7 +92,7 @@ class Maker(object):
             serv.addService(SS)
 
         R.removeHandler(tempH)
-        print 'root service',serv
+        print('root service',serv)
         showService(serv)
         return serv
 

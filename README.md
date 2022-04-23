@@ -14,13 +14,14 @@ Dependencies
 ------------
 
 Requires: python-twisted-core >= 10.0
+Tested on: py2.7/Twisted-20.3.0 (pip2 install twisted), py3.6/Twisted-19.10.0
 
 Configuration
 -------------
 
-The provided [server.conf](server.conf) should work for most sites.
+The provided [ioglogserver.conf](ioclogserver.conf) should work for most sites.
 It listens on the default port 7004, writes all entries to epics.log,
 and re-broadcasts on port 7014.
 
-Also provided is [server.conf.bnl](server.conf.bnl) which demonstrates
+Also provided is [ioglogserver_bnl.conf](ioclogserver_bnl.conf) which demonstrates
 filtering caputlog entries by user name.

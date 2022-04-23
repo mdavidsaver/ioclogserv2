@@ -25,7 +25,10 @@ class PutLogTagger(handler.Processor):
 
     def _onthread(self, entries):
         for ent in entries:
-            M = _capl.match(ent.msg)
+            try:
+                M = _capl.match(ent.msg)
+            except:
+                M = _capl.match(ent.msg.decode('utf-8'))
             if M:
                 ent.user = M.group('user')
                 ent.host = M.group('host')

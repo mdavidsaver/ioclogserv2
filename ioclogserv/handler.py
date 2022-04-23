@@ -51,7 +51,11 @@ class Processor(service.MultiService):
             # unwrap FirstError
             E = F.trap(defer.FirstError)
             if E is defer.FirstError:
-                F = F.subFailure
+                try:
+                    F = F.subFailure
+                #twistd-19.10.0: 'Failure' object has no attribute 'subFailure'
+                except: 
+                    F = E 
             return F
 
         return D
@@ -89,7 +93,8 @@ def buildPipelines(parser):
     roots = {}
 
     # Connect to sources
-    for proc in byname.itervalues():
+    #for proc in byname.itervalues():
+    for proc in byname.values():
         if 'in' not in proc.conf:
             if not proc.generator:
                 raise RuntimeError("No source for %s which isn't a generator"%proc.name)
