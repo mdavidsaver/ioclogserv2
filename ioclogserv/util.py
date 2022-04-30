@@ -3,7 +3,10 @@
 import logging
 _log = logging.getLogger(__name__)
 
-from ConfigParser import NoOptionError, NoSectionError
+try:
+    from ConfigParser import NoOptionError, NoSectionError #py2.7
+except ImportError:
+    from configparser import NoOptionError, NoSectionError
 
 class ConfigDict(object):
     def __init__(self, C, S):

@@ -1,0 +1,15 @@
+[Unit]
+Description=Log recorder daemon for EPICS IOCS
+After=network.target local_fs.target syslog.target 
+ConditionFileIsExecutable=/usr/bin/twistd
+
+[Service]
+Environment="PYTHONPATH=/usr/local/ioclogserv2"
+ExecStart=/usr/bin/twistd \
+    --nodaemon \
+    --logfile=/var/log/epics/daemon.log \
+    --pidfile= \
+    ioclogserver -C /etc/ioclogserver.conf -M 2223
+
+[Install]
+WantedBy=multi-user.target

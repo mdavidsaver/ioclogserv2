@@ -4,7 +4,10 @@ import logging
 _log = logging.getLogger(__name__)
 
 import weakref
-from cStringIO import StringIO
+try:
+    from cStringIO import StringIO #py2.7
+except:
+    from io import StringIO
 
 from twisted.application import internet
 from twisted.internet import defer, protocol, reactor, task
@@ -134,8 +137,8 @@ class IOCLogReceiver(handler.Processor):
         yield self.complete(ret)
 
     def show(self):
-        print 'Clients:'
+        print('Clients:')
         for C in self.fact.clients:
-            print ' ',C.transport.getPeer()
+            print(' ',C.transport.getPeer())
 
 handler.registerProcessor('receiver', IOCLogReceiver)
