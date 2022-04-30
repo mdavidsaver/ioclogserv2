@@ -25,3 +25,5 @@ and re-broadcasts on port 7014.
 
 Also provided is [ioglogserver_bnl.conf](ioclogserver_bnl.conf) which demonstrates
 filtering caputlog entries by user name.
+
+Type "sudo ./install.sh" to install it.
